@@ -1,5 +1,7 @@
 const nextConfig = {
   reactStrictMode: true,
+  // Enable standalone output for Docker
+  output: 'standalone',
   typescript: {
     // ⚠️ Dangerously allow production builds to successfully complete even if
     // your project has type errors.

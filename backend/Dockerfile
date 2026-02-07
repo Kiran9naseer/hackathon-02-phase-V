@@ -8,6 +8,7 @@ WORKDIR /app
 RUN apt-get update && apt-get install -y \
     build-essential \
     libpq-dev \
+    curl \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy requirements file
@@ -19,8 +20,9 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy the rest of the application code
 COPY . .
 
-# Make startup script executable
-RUN chmod +x ./startup.sh
+# Make startup script executable and fix line endings (for Windows)
+RUN chmod +x ./startup.sh && \
+    sed -i 's/\r$//' ./startup.sh
 
 # Expose the port FastAPI will run on (HF Spaces uses 7860 by default)
 EXPOSE 7860

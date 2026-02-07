@@ -66,6 +66,7 @@ async def chat_with_agent(
     # Fetches history and determines intent/actions
     history = ConversationAgent.format_history_for_ai(messages)
     decision = await TaskManagerAgent.process_message(
+        db,
         request.message, 
         history, 
         user_uuid

@@ -1,0 +1,25 @@
+# Ignore node_modules
+node_modules
+npm-debug.log
+
+# Ignore .next build output
+.next
+
+# Ignore .env files (they should be passed as environment variables)
+.env*
+!.env.local.example
+
+# Ignore git
+.git
+.gitignore
+
+# Ignore IDE files
+.vscode
+.idea
+
+# Ignore OS files
+.DS_Store
+Thumbs.db
+
+# Ignore vercel
+.vercel

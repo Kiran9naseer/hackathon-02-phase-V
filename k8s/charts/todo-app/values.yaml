@@ -1,0 +1,35 @@
+# Default values for todo-app.
+
+replicaCount: 1
+
+frontend:
+  image:
+    repository: todo-frontend
+    tag: latest
+    pullPolicy: Never
+  service:
+    type: NodePort
+    port: 3000
+    validationPort: 30000
+    # nodePort: 30000
+  env:
+    NEXT_PUBLIC_API_URL: "http://localhost:30001" 
+
+backend:
+  image:
+    repository: todo-backend
+    tag: latest
+    pullPolicy: Never
+  service:
+    type: NodePort
+    port: 8000
+    validationPort: 30001
+    # nodePort: 30001
+  env:
+    DATABASE_URL: "sqlite:///app/data/todo.db"
+    SECRET_KEY: "dev-secret-key"
+
+persistence:
+  enabled: true
+  size: 1Gi
+  storageClass: standard

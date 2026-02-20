@@ -3,31 +3,35 @@
 from typing import Any
 
 
-class AppException(Exception):
-    """Base exception for application-specific errors.
+from fastapi import HTTPException
 
+
+class AppException(HTTPException):
+    """Base exception for application-specific errors that returns HTTP responses.
+    
     Attributes:
         status_code: HTTP status code to return.
         detail: Human-readable error message.
         code: Machine-readable error code.
     """
 
-    status_code: int = 500
-    detail: str = "An unexpected error occurred"
     code: str = "internal_error"
 
     def __init__(
         self,
         detail: str | None = None,
+        status_code: int | None = None,
         code: str | None = None,
         **kwargs: Any,
     ):
         """Initialize exception with optional custom detail and code."""
+        if status_code is not None:
+            self.status_code = status_code
         if detail is not None:
             self.detail = detail
         if code is not None:
             self.code = code
-        super().__init__(self.detail)
+        super().__init__(status_code=self.status_code, detail=self.detail)
 
 
 class NotFoundException(AppException):

@@ -16,9 +16,9 @@ def test_chat_endpoint_new_conversation(client: TestClient, db: Session):
     db.add(mock_user)
     db.commit()
     
-    # 2. Override get_current_user to return this user
+    # 2. Override get_current_user to return this user's ID
     def override_get_current_user():
-        return mock_user
+        return user_id
     
     app.dependency_overrides[get_current_user] = override_get_current_user
 
@@ -46,7 +46,7 @@ def test_chat_endpoint_list_tasks(client: TestClient, db: Session):
     
     # 2. Override get_current_user
     def override_get_current_user():
-        return mock_user
+        return user_id
     
     app.dependency_overrides[get_current_user] = override_get_current_user
 

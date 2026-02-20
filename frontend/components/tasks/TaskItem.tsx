@@ -2,12 +2,14 @@ import Link from "next/link";
 import { Task } from "@/types/task";
 import { formatDate, getPriorityColor, getStatusColor } from "@/lib/utils";
 import { Checkbox } from "@/components/ui/Checkbox";
+import { HighlightedText } from "@/components/ui/HighlightedText";
 
 interface TaskItemProps {
   task: Task;
   onToggleComplete: (id: string) => void;
   onDelete: (id: string) => void;
   isCompleting?: boolean;
+  highlightQuery?: string;
 }
 
 export function TaskItem({
@@ -15,6 +17,7 @@ export function TaskItem({
   onToggleComplete,
   onDelete,
   isCompleting,
+  highlightQuery,
 }: TaskItemProps) {
   const isCompleted = task.status === "completed";
 
@@ -34,7 +37,7 @@ export function TaskItem({
       <div className="flex-1 min-w-0">
         <Link href={`/tasks/${task.id}`}>
           <h3 className={`font-bold transition-colors group-hover:text-primary-600 truncate ${isCompleted ? "text-slate-400 line-through" : "text-slate-800"}`}>
-            {task.title}
+            <HighlightedText text={task.title} query={highlightQuery} />
           </h3>
         </Link>
         <div className="flex items-center space-x-3 mt-1">

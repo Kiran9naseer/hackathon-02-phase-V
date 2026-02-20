@@ -1,10 +1,11 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
-import type { TaskStatus, TaskPriority } from "@/types/task";
+import { useTags } from "@/hooks/useTags";
+import type { TaskStatus, TaskPriority, Tag } from "@/types/task";
 
 interface TaskFilterProps {
   onFilterChange: (filters: {
@@ -13,6 +14,7 @@ interface TaskFilterProps {
     priority?: TaskPriority;
     sortBy?: string;
     dueDate?: string;
+    tagIds?: string[];
   }) => void;
   onClearFilters: () => void;
 }
@@ -23,15 +25,22 @@ export function TaskFilter({ onFilterChange, onClearFilters }: TaskFilterProps) 
   const [priority, setPriority] = useState<string>("");
   const [sortBy, setSortBy] = useState<string>("");
   const [dueDate, setDueDate] = useState<string>("");
+  const [selectedTagIds, setSelectedTagIds] = useState<string[]>([]);
+  const { tags, fetchTags } = useTags();
+
+  useEffect(() => {
+    fetchTags();
+  }, [fetchTags]);
 
   const updateFilters = useCallback(
-    (newFilters: Partial<{ search: string; status: string; priority: string; sortBy: string; dueDate: string }>) => {
+    (newFilters: Partial<{ search: string; status: string; priority: string; sortBy: string; dueDate: string; tagIds: string[] }>) => {
       const filters = {
         search,
         status,
         priority,
         sortBy,
         dueDate,
+        tagIds: selectedTagIds,
         ...newFilters,
       };
 
@@ -41,9 +50,10 @@ export function TaskFilter({ onFilterChange, onClearFilters }: TaskFilterProps) 
         priority: (filters.priority as TaskPriority) || undefined,
         sortBy: (filters.sortBy as any) || undefined,
         dueDate: filters.dueDate || undefined,
+        tagIds: filters.tagIds.length > 0 ? filters.tagIds : undefined,
       });
     },
-    [search, status, priority, sortBy, dueDate, onFilterChange]
+    [search, status, priority, sortBy, dueDate, selectedTagIds, onFilterChange]
   );
 
   const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -76,16 +86,25 @@ export function TaskFilter({ onFilterChange, onClearFilters }: TaskFilterProps) 
     updateFilters({ dueDate: value });
   };
 
+  const handleTagToggle = (tagId: string) => {
+    const newTagIds = selectedTagIds.includes(tagId)
+      ? selectedTagIds.filter(id => id !== tagId)
+      : [...selectedTagIds, tagId];
+    setSelectedTagIds(newTagIds);
+    updateFilters({ tagIds: newTagIds });
+  };
+
   const handleClearFilters = useCallback(() => {
     setSearch("");
     setStatus("");
     setPriority("");
     setSortBy("");
     setDueDate("");
+    setSelectedTagIds([]);
     onClearFilters();
   }, [onClearFilters]);
 
-  const hasActiveFilters = search || status || priority || sortBy || dueDate;
+  const hasActiveFilters = search || status || priority || sortBy || dueDate || selectedTagIds.length > 0;
 
   return (
     <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 mb-6">
@@ -152,6 +171,34 @@ export function TaskFilter({ onFilterChange, onClearFilters }: TaskFilterProps) 
           />
         </div>
       </div>
+
+      {/* Tag Filter */}
+      {tags.length > 0 && (
+        <div className="mt-4">
+          <label className="text-xs font-semibold text-gray-600 mb-2 block">Filter by Tags:</label>
+          <div className="flex flex-wrap gap-2">
+            {tags.map((tag) => (
+              <button
+                key={tag.id}
+                type="button"
+                onClick={() => handleTagToggle(tag.id)}
+                className={`px-3 py-1 rounded-full text-xs font-medium transition-all ${selectedTagIds.includes(tag.id)
+                  ? 'ring-2 ring-offset-1'
+                  : 'opacity-60 hover:opacity-100'
+                  }`}
+                style={{
+                  backgroundColor: `${tag.color}20`,
+                  color: tag.color,
+                  border: `1px solid ${tag.color}40`,
+                }}
+              >
+                {tag.name}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
       {hasActiveFilters && (
         <div className="mt-4 flex justify-end">
           <Button variant="ghost" size="sm" onClick={handleClearFilters}>

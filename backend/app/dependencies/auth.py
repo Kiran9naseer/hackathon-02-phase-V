@@ -156,7 +156,11 @@ async def get_current_user(
     
     # 2. Try Cookie if no Bearer Token
     if not token and request:
-        token = request.cookies.get("jwt_token")
+        token = request.cookies.get("jwt_token") or request.cookies.get("token")
+        
+    # 3. Try query param (useful for SSE)
+    if not token and request:
+        token = request.query_params.get("token")
         
     if not token:
         raise HTTPException(

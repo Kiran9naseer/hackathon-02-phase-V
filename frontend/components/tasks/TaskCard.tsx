@@ -1,18 +1,22 @@
 "use client";
 
 import Link from "next/link";
-import { Task } from "@/types/task";
+import { Task, Priority } from "@/types/task";
 import { formatDate } from "@/lib/utils";
 import { Checkbox } from "@/components/ui/Checkbox";
 import { Trash2 } from "lucide-react";
 import { useTheme } from "next-themes";
 import { useEffect, useState } from "react";
+import { PriorityBadge } from './PriorityBadge';
+import { HighlightedText } from "@/components/ui/HighlightedText";
+import { RecurrenceBadge } from "./RecurrenceBadge";
 
 interface TaskCardProps {
   task: Task;
   onToggleComplete: (id: string) => void;
   onDelete: (id: string) => void;
   isCompleting?: boolean;
+  highlightQuery?: string;
 }
 
 export function TaskCard({
@@ -20,6 +24,7 @@ export function TaskCard({
   onToggleComplete,
   onDelete,
   isCompleting,
+  highlightQuery,
 }: TaskCardProps) {
   const isCompleted = task.status === "completed";
   const { theme } = useTheme();
@@ -32,28 +37,22 @@ export function TaskCard({
   if (!mounted) return null;
 
   const isDark = theme === 'dark';
-
-  const priorityStyles = {
-    high: 'bg-red-500/10 text-red-500 border-red-500/20',
-    medium: 'bg-primary-500/10 text-primary-400 border-primary-500/20',
-    low: 'bg-slate-500/10 text-slate-400 border-slate-500/20',
-  };
+  const isOverdue = !isCompleted && task.dueDate && new Date(task.dueDate) < new Date(new Date().setHours(0, 0, 0, 0));
 
   return (
     <div
-      className={`glass-card p-8 group relative overflow-hidden transition-all duration-700 ${isCompleted ? 'opacity-40 grayscale-[0.5]' : ''
+      className={`glass-card p-8 group relative overflow-hidden transition-all duration-700 ${isCompleted ? 'opacity-40 grayscale-[0.5]' :
+        isOverdue ? 'border-red-500/50 shadow-[0_0_20px_rgba(239,68,68,0.1)]' : ''
         }`}
     >
       {/* Card Mist Background */}
       <div className="absolute top-0 right-0 w-32 h-32 bg-primary-500/5 rounded-full blur-3xl -z-10 group-hover:bg-primary-500/10 transition-all duration-700"></div>
 
       <div className="flex justify-between items-start mb-6">
-        <span
-          className={`text-[9px] px-3 py-1.5 rounded-full font-black uppercase tracking-[0.2em] border italic ${priorityStyles[task.priority as keyof typeof priorityStyles] || priorityStyles.low
-            }`}
-        >
-          {task.priority} Priority
-        </span>
+        <div className="flex items-center gap-2">
+          <PriorityBadge priority={task.priority as Priority} size="sm" />
+          {task.recurrenceSeriesId && <RecurrenceBadge />}
+        </div>
         <Checkbox
           checked={isCompleted}
           onChange={() => onToggleComplete(task.id)}
@@ -67,15 +66,35 @@ export function TaskCard({
           className={`font-black text-2xl tracking-tighter italic uppercase transition-all duration-500 group-hover:text-primary-400 ${isCompleted ? 'text-primary-50/20 line-through' : 'text-white'
             }`}
         >
-          {task.title}
+          <HighlightedText text={task.title} query={highlightQuery} />
         </h3>
       </Link>
 
       {task.description && (
         <p className={`text-md line-clamp-2 mb-8 font-medium leading-relaxed tracking-tight ${isCompleted ? 'text-primary-50/10' : 'text-primary-50/40'
           }`}>
-          {task.description}
+          <HighlightedText text={task.description} query={highlightQuery} />
         </p>
+      )}
+
+      {/* Tags Display */}
+      {task.tags && task.tags.length > 0 && (
+        <div className="flex flex-wrap gap-2 mb-6">
+          {task.tags.map((tag) => (
+            <span
+              key={tag.id}
+              className="inline-flex items-center px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider transition-all duration-300 hover:scale-105 cursor-pointer"
+              style={{
+                backgroundColor: `${tag.color}15`,
+                color: tag.color,
+                border: `1px solid ${tag.color}40`,
+                boxShadow: `0 0 10px ${tag.color}10`,
+              }}
+            >
+              {tag.name}
+            </span>
+          ))}
+        </div>
       )}
 
       {/* Progress Matrix */}
@@ -84,8 +103,8 @@ export function TaskCard({
           <span className="text-[9px] font-black uppercase tracking-[0.2em] text-primary-50/20 italic">
             Synchronization
           </span>
-          <span className="text-[10px] font-black text-primary-500 italic">
-            {isCompleted ? '100% COMPLETE' : 'PENDING'}
+          <span className={`text-[10px] font-black italic ${isOverdue ? 'text-red-500' : 'text-primary-500'}`}>
+            {isCompleted ? '100% COMPLETE' : isOverdue ? 'PROTOCOL OVERDUE' : 'PENDING'}
           </span>
         </div>
         <div className="h-1.5 w-full rounded-full bg-primary-950 overflow-hidden">

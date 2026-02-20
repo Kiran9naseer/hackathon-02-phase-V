@@ -5,15 +5,19 @@ user ownership filtering on every query.
 """
 
 import logging
-from datetime import datetime
-from typing import Optional
+from datetime import datetime, timedelta, date
+from typing import Optional, List
 from uuid import UUID
 
 from sqlalchemy.orm import Session
 from sqlalchemy import select, func
 
 from app.models.task import Task, TaskStatus
+from app.models.task_tags import TaskTag
 from app.schemas.task_schema import TaskCreate, TaskUpdate
+from app.services.recurring_service import RecurringService
+from app.services.reminder_service import ReminderService
+from app.events.publisher import get_publisher
 
 logger = logging.getLogger(__name__)
 
@@ -61,8 +65,11 @@ class TaskService:
         status: Optional[str] = None,
         priority: Optional[str] = None,
         category_id: Optional[UUID] = None,
+        tag_ids: Optional[List[UUID]] = None,
         limit: int = 20,
         offset: int = 0,
+        sort_by: str = "created_at",
+        sort_order: str = "desc",
     ) -> dict:
         """
         List tasks with optional filtering and pagination.
@@ -71,8 +78,11 @@ class TaskService:
             status: Filter by task status.
             priority: Filter by priority level.
             category_id: Filter by category UUID.
+            tag_ids: Filter by tag UUIDs (tasks must have ALL specified tags).
             limit: Maximum number of results.
             offset: Number of results to skip.
+            sort_by: Field to sort by (created_at, updated_at, due_date, priority, title).
+            sort_order: Sort order (asc or desc).
 
         Returns:
             dict with items, total, limit, and offset.
@@ -89,15 +99,30 @@ class TaskService:
 
         if category_id:
             base_query = base_query.where(Task.category_id == category_id)
+        
+        # Filter by tags (tasks must have ALL specified tags)
+        if tag_ids:
+            for tag_id in tag_ids:
+                base_query = base_query.where(
+                    Task.id.in_(
+                        select(TaskTag.task_id).where(TaskTag.tag_id == tag_id)
+                    )
+                )
 
         # Get total count
         count_query = select(func.count()).select_from(base_query.subquery())
         total = self.db.execute(count_query).scalar() or 0
 
+        # Apply sorting
+        sort_column = getattr(Task, sort_by, Task.created_at)
+        if sort_order.lower() == "desc":
+            base_query = base_query.order_by(sort_column.desc())
+        else:
+            base_query = base_query.order_by(sort_column.asc())
+
         # Apply ordering and pagination
         query = (
             base_query
-            .order_by(Task.created_at.desc())
             .offset(offset)
             .limit(limit)
         )
@@ -116,12 +141,13 @@ class TaskService:
             "offset": offset,
         }
 
-    def create(self, task_data: TaskCreate) -> Task:
+    def create(self, task_data: TaskCreate, tag_ids: Optional[List[UUID]] = None) -> Task:
         """
         Create a new task with automatic user_id assignment.
 
         Args:
             task_data: Task creation data.
+            tag_ids: Optional list of tag UUIDs to associate with the task.
 
         Returns:
             Created Task instance.
@@ -137,19 +163,79 @@ class TaskService:
         )
 
         self.db.add(task)
+        # Apply additional fields from TaskCreate
+        if task_data.reminder_config:
+            task.reminder_config = task_data.reminder_config
+        if task_data.recurrence_rule:
+            task.recurrence_rule = task_data.recurrence_rule
+        if task_data.recurrence_series_id:
+            task.recurrence_series_id = task_data.recurrence_series_id
+
         self.db.commit()
         self.db.refresh(task)
+        
+        # Schedule reminders if provided
+        if task.due_date and task.reminder_config:
+            async_reminder_service = ReminderService(self.db, self.user_id)
+            offsets = task.reminder_config.get("offsets", [])
+            for offset in offsets:
+                # offset is in minutes, usually negative (e.g. -1440 for 1 day before)
+                remind_at = datetime.combine(task.due_date, datetime.min.time()) + timedelta(minutes=offset)
+                if remind_at > datetime.utcnow():
+                    import asyncio
+                    # We can't easily use await in this sync service without restructuring
+                    # For now we'll just create the DB records, background polling or Dapr will handle it
+                    # In a production app, we'd use a background task or event bus
+                    from app.models.task_reminder import TaskReminder
+                    reminder = TaskReminder(
+                        task_id=task.id,
+                        user_id=self.user_id,
+                        scheduled_time=remind_at,
+                        reminder_type=task.reminder_config.get("type", "in_app"),
+                        offset_minutes=offset,
+                        status="pending"
+                    )
+                    self.db.add(reminder)
+            self.db.commit()
+            self.db.refresh(task)
+        
+        # Associate tags if provided
+        if tag_ids:
+            for tag_id in tag_ids:
+                task_tag = TaskTag(task_id=task.id, tag_id=tag_id)
+                self.db.add(task_tag)
+            self.db.commit()
+            self.db.refresh(task)
 
-        logger.info(f"Task {task.id} created for user {self.user_id}")
+        # Publish Event
+        import asyncio
+        asyncio.create_task(self._publish_task_event("TaskCreated", task))
+
+        logger.info(f"Task {task.id} created for user {self.user_id} with {len(tag_ids or [])} tags")
         return task
 
-    def update(self, task_id: UUID, task_data: TaskUpdate) -> Task | None:
+    async def _publish_task_event(self, event_type: str, task: Task):
+        """Helper to publish task events asynchronously."""
+        try:
+            publisher = await get_publisher()
+            await publisher.publish("task_events", {
+                "type": event_type,
+                "user_id": str(self.user_id),
+                "task_id": str(task.id),
+                "title": task.title,
+                "timestamp": datetime.utcnow().isoformat()
+            })
+        except Exception as e:
+            logger.error(f"Failed to publish {event_type} event: {e}")
+
+    def update(self, task_id: UUID, task_data: TaskUpdate, tag_ids: Optional[List[UUID]] = None) -> Task | None:
         """
         Update a task with ownership check.
 
         Args:
             task_id: The task UUID to update.
             task_data: Update data (only provided fields are updated).
+            tag_ids: Optional list of tag UUIDs to replace existing tags.
 
         Returns:
             Updated Task if found and owned, None otherwise.
@@ -161,15 +247,31 @@ class TaskService:
         # Update only provided fields
         update_data = task_data.model_dump(exclude_unset=True)
         for field, value in update_data.items():
+            if field == "tag_ids":
+                continue
             # Handle enum values
             if hasattr(value, 'value'):
                 value = value.value
             setattr(task, field, value)
 
         task.updated_at = datetime.utcnow()
+        
+        # Update tags if provided
+        if tag_ids is not None:
+            # Remove existing tag associations
+            self.db.query(TaskTag).filter(TaskTag.task_id == task_id).delete()
+            
+            # Add new tag associations
+            for tag_id in tag_ids:
+                task_tag = TaskTag(task_id=task.id, tag_id=tag_id)
+                self.db.add(task_tag)
 
         self.db.commit()
         self.db.refresh(task)
+
+        # Publish Event
+        import asyncio
+        asyncio.create_task(self._publish_task_event("TaskUpdated", task))
 
         logger.info(f"Task {task_id} updated for user {self.user_id}")
         return task
@@ -191,6 +293,10 @@ class TaskService:
         self.db.delete(task)
         self.db.commit()
 
+        # Publish Event
+        import asyncio
+        asyncio.create_task(self._publish_task_event("TaskDeleted", task))
+
         logger.info(f"Task {task_id} deleted for user {self.user_id}")
         return True
 
@@ -211,6 +317,15 @@ class TaskService:
         task.complete()
         self.db.commit()
         self.db.refresh(task)
+
+        # Trigger next instance for recurring tasks
+        if task.recurrence_series_id:
+            recurring_service = RecurringService(self.db, self.user_id)
+            recurring_service.schedule_next_instance(task.recurrence_series_id, task.due_date or date.today())
+
+        # Publish Event
+        import asyncio
+        asyncio.create_task(self._publish_task_event("TaskCompleted", task))
 
         logger.info(f"Task {task_id} marked complete for user {self.user_id}")
         return task

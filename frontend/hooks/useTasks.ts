@@ -1,5 +1,6 @@
 import { useState, useCallback } from "react";
 import { taskApi } from "@/lib/api/tasks";
+import apiClient from "@/lib/api/client";
 import { useSession } from "@/lib/auth/provider";
 import type { Task, CreateTaskRequest, UpdateTaskRequest, TaskFilters } from "@/types/task";
 
@@ -27,7 +28,7 @@ export function useTasks(): UseTasksReturn {
       console.log("Skipping fetchTasks: User not authenticated");
       return;
     }
-    
+
     setIsLoading(true);
     setError(null);
     try {
@@ -48,15 +49,33 @@ export function useTasks(): UseTasksReturn {
   const createTask = useCallback(async (data: CreateTaskRequest): Promise<Task> => {
     setError(null);
     try {
-      const task = await taskApi.create(data);
-      setTasks((prev) => [task, ...prev]);
-      return task;
+      if (data.is_recurring && data.recurrence) {
+        // Handle recurring task creation via series endpoint
+        const response = await apiClient.post("/api/v1/recurring/", {
+          title: data.title,
+          description: data.description,
+          priority: data.priority,
+          category_id: data.categoryId,
+          frequency: data.recurrence.frequency,
+          interval: data.recurrence.interval,
+          end_date: data.recurrence.endDate
+        });
+        
+        // After creating series, fetch tasks to get the first instance
+        await fetchTasks();
+        // Return a dummy task or the first one from list (slightly hacky for return type)
+        return {} as Task; 
+      } else {
+        const task = await taskApi.create(data);
+        setTasks((prev) => [task, ...prev]);
+        return task;
+      }
     } catch (err) {
       const message = err instanceof Error ? err.message : "Failed to create task";
       setError(message);
       throw err;
     }
-  }, []);
+  }, [fetchTasks]);
 
   const updateTask = useCallback(async (id: string, data: UpdateTaskRequest): Promise<Task> => {
     setError(null);

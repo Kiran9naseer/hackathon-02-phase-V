@@ -31,3 +31,10 @@ python-multipart
 
 # Rate Limiting
 slowapi
+
+# Phase V - Advanced Features
+aiokafka>=0.9.0          # Kafka event streaming
+dapr>=1.12.0             # Dapr runtime SDK
+dapr-ext-fastapi>=1.12.0 # Dapr FastAPI integration
+redis>=5.0.0             # Search caching
+google-generativeai>=0.8.0  # Gemini AI for chatbot

@@ -12,6 +12,7 @@ interface TaskListProps {
   onDelete: (id: string) => void;
   viewMode?: "card" | "list";
   completingId?: string | null;
+  highlightQuery?: string;
 }
 
 export function TaskList({
@@ -21,6 +22,7 @@ export function TaskList({
   onDelete,
   viewMode = "card",
   completingId = null,
+  highlightQuery,
 }: TaskListProps) {
   if (isLoading) {
     return (
@@ -46,6 +48,7 @@ export function TaskList({
             onToggleComplete={onToggleComplete}
             onDelete={onDelete}
             isCompleting={completingId === task.id}
+            highlightQuery={highlightQuery}
           />
         ))}
       </div>
@@ -61,6 +64,7 @@ export function TaskList({
           onToggleComplete={onToggleComplete}
           onDelete={onDelete}
           isCompleting={completingId === task.id}
+          highlightQuery={highlightQuery}
         />
       ))}
     </div>

@@ -34,7 +34,7 @@ const ChatContainer: React.FC = () => {
             const token = await getToken();
             const apiUrl = getEnv().NEXT_PUBLIC_API_URL;
 
-            const response = await fetch(`${apiUrl}/api/${user.id}/chat`, {
+            const response = await fetch(`${apiUrl}/api/v1/${user.id}/chat`, {
                 method: "POST",
                 headers: {
                     "Content-Type": "application/json",

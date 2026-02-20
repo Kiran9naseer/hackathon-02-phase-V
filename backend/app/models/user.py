@@ -16,6 +16,9 @@ from sqlmodel import Field, Relationship, SQLModel
 if TYPE_CHECKING:
     from app.models.task import Task
     from app.models.category import Category
+    from app.models.tag import Tag
+    from app.models.recurring_series import RecurringTaskSeries
+    from app.models.task_reminder import TaskReminder
 
 
 class User(SQLModel, table=True):
@@ -36,6 +39,9 @@ class User(SQLModel, table=True):
     # Relationships
     tasks: list["Task"] = Relationship(back_populates="user")
     categories: list["Category"] = Relationship(back_populates="user")
+    tags: list["Tag"] = Relationship(back_populates="user")
+    recurring_series: list["RecurringTaskSeries"] = Relationship(back_populates="user")
+    reminders: list["TaskReminder"] = Relationship(back_populates="user")
 
     def __repr__(self) -> str:
         """String representation of the user."""

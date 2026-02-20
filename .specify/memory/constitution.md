@@ -1,146 +1,55 @@
-# Todo Full-Stack Web Application Constitution
+# [PROJECT_NAME] Constitution
+<!-- Example: Spec Constitution, TaskFlow Constitution, etc. -->
 
 ## Core Principles
 
-### I. Spec-Driven Development (SDD)
-No implementation without approved specifications. All work begins with clear, documented requirements. Architecture must be defined before coding begins. Features are only implemented after specs are reviewed and approved.
+### [PRINCIPLE_1_NAME]
+<!-- Example: I. Library-First -->
+[PRINCIPLE_1_DESCRIPTION]
+<!-- Example: Every feature starts as a standalone library; Libraries must be self-contained, independently testable, documented; Clear purpose required - no organizational-only libraries -->
 
-### II. Agent-Only Execution
-No manual coding by human developers. All implementation via Claude Code agents using skills. Consistent, repeatable outputs from defined prompts. Humans define requirements; agents write code.
+### [PRINCIPLE_2_NAME]
+<!-- Example: II. CLI Interface -->
+[PRINCIPLE_2_DESCRIPTION]
+<!-- Example: Every library exposes functionality via CLI; Text in/out protocol: stdin/args → stdout, errors → stderr; Support JSON + human-readable formats -->
 
-### III. Incremental Delivery
-Backend, frontend, auth/integration executed separately. Each phase has clear scope and boundaries. Phases are independently reviewable and verifiable. No cross-phase feature additions.
+### [PRINCIPLE_3_NAME]
+<!-- Example: III. Test-First (NON-NEGOTIABLE) -->
+[PRINCIPLE_3_DESCRIPTION]
+<!-- Example: TDD mandatory: Tests written → User approved → Tests fail → Then implement; Red-Green-Refactor cycle strictly enforced -->
 
-### IV. Deterministic Outputs
-Same prompts produce consistent results. Skills ensure uniform implementation patterns. No ad-hoc or improvised feature additions. Each execution phase is repeatable and predictable.
+### [PRINCIPLE_4_NAME]
+<!-- Example: IV. Integration Testing -->
+[PRINCIPLE_4_DESCRIPTION]
+<!-- Example: Focus areas requiring integration tests: New library contract tests, Contract changes, Inter-service communication, Shared schemas -->
 
-### V. Security-First Design
-Authentication and user isolation enforced from the start. JWT verification on every protected endpoint. Secrets managed via environment variables only. Data access scoped to authenticated users.
+### [PRINCIPLE_5_NAME]
+<!-- Example: V. Observability, VI. Versioning & Breaking Changes, VII. Simplicity -->
+[PRINCIPLE_5_DESCRIPTION]
+<!-- Example: Text I/O ensures debuggability; Structured logging required; Or: MAJOR.MINOR.BUILD format; Or: Start simple, YAGNI principles -->
 
-## Technology Stack
+### [PRINCIPLE_6_NAME]
 
-| Layer | Technology |
-|-------|------------|
-| Frontend | Next.js 16+ (App Router) |
-| Backend | FastAPI (Python) |
-| ORM | SQLModel |
-| Database | Neon Serverless PostgreSQL |
-| Authentication | Better Auth + JWT |
 
-## Key Standards
+[PRINCIPLE__DESCRIPTION]
 
-### Agentic Dev Stack Workflow
-All development MUST follow this sequence:
+## [SECTION_2_NAME]
+<!-- Example: Additional Constraints, Security Requirements, Performance Standards, etc. -->
 
-```
-Write Spec → Generate Plan → Break into Tasks → Implement via Claude Code
-```
+[SECTION_2_CONTENT]
+<!-- Example: Technology stack requirements, compliance standards, deployment policies, etc. -->
 
-1. **Write Specification** - Document requirements in `specs/<feature>/spec.md`
-2. **Generate Architecture Plan** - Create `specs/<feature>/plan.md` with component interactions
-3. **Break into Tasks** - Create `specs/<feature>/tasks.md` with actionable work items
-4. **Implement via Claude Code** - Invoke appropriate agents with relevant skills
+## [SECTION_3_NAME]
+<!-- Example: Development Workflow, Review Process, Quality Gates, etc. -->
 
-### Execution Standards
-- Each execution phase must have clearly defined boundaries
-- Agents must use only their assigned skills
-- Skills loaded from `skills/` directory must not be reimplemented
-- No cross-phase leakage (e.g., frontend generation during backend phase)
-- All API endpoints must conform to defined contracts
-
-## Constraints
-
-### Prohibited Actions
-- Manual code writing by humans
-- One-shot full application generation
-- Cross-phase feature additions
-- Hardcoded credentials or secrets
-- Implementation without approved specification
-
-### Phase Isolation
-- Backend, frontend, and auth/integration must be executed as separate phases
-- Each phase must complete before the next begins
-- Skills must be loaded from `skills/` directory
-- No feature improvisation beyond approved specs
-
-### Security Constraints
-- Secrets must be managed via environment variables only
-- JWT tokens must be verified on every protected request
-- User isolation must be enforced at the database query level
-- No credentials in source code or git history
-
-## Success Criteria
-
-### Functional
-- Backend APIs function correctly with persistent storage
-- Frontend provides a responsive, multi-user interface
-- Authentication securely enforces user isolation
-- Protected endpoints reject unauthorized access (401/403)
-- JWT verification is enforced on every API request
-
-### Quality
-- Each phase is independently reviewable and verifiable
-- Application is stable, secure, and demo-ready
-- Code quality follows best practices for each technology
-- Tests provide comprehensive coverage for all features
-
-## Agent and Skill Registry
-
-### Available Agents
-| Agent | Purpose |
-|-------|---------|
-| `todo-requirements-architect` | Spec analysis, architecture generation |
-| `todo-frontend-generator` | Next.js frontend with components |
-| `todo-backend-agent` | FastAPI CRUD endpoints |
-| `todo-database-schema` | SQLModel database design |
-| `todo-auth-agent` | JWT authentication & user isolation |
-| `todo-integration-agent` | Frontend ↔ backend integration |
-| `todo-testing-agent` | Comprehensive test coverage |
-
-### Available Skills
-| Skill | Purpose |
-|-------|---------|
-| `requirements-architecture-skill.md` | Spec analysis, architecture generation |
-| `nextjs-frontend-generation-skill.md` | Complete Next.js frontend scaffold |
-| `fastapi-backend-crud-skill.md` | FastAPI CRUD endpoints with auth |
-| `database-schema-skill.md` | SQLModel schema design |
-| `jwt-auth-verification-skill.md` | JWT token handling & protection |
-| `fullstack-integration-skill.md` | Frontend ↔ backend integration |
-| `testing.qa.todo.md` | Test generation & bug detection |
-| `deployment.devops.todo.md` | CI/CD, containers, monitoring |
-
-## Phase Execution Order
-
-1. Requirements & Architecture - Define specs, generate architecture
-2. Database Schema - Design and implement data models
-3. Backend Implementation - FastAPI CRUD with auth
-4. Frontend Generation - Next.js UI with components
-5. Auth & Integration - Connect systems, enforce isolation
-6. Testing & QA - Comprehensive test coverage
-7. Deployment - CI/CD and production readiness
-
-Each phase must complete successfully before the next begins. Each phase is independently reviewable and verifiable.
-
-## Project Structure
-
-```
-├── specs/
-│   └── <feature>/
-│       ├── spec.md          # Feature requirements
-│       ├── plan.md          # Architecture decisions
-│       └── tasks.md         # Actionable tasks
-├── skills/
-│   └── *.md                 # Agent skill specifications
-├── history/
-│   ├── prompts/             # Prompt History Records
-│   └── adr/                 # Architecture Decision Records
-├── frontend/                # Next.js application
-├── backend/                 # FastAPI application
-└── .env.example             # Environment template
-```
+[SECTION_3_CONTENT]
+<!-- Example: Code review requirements, testing gates, deployment approval process, etc. -->
 
 ## Governance
+<!-- Example: Constitution supersedes all other practices; Amendments require documentation, approval, migration plan -->
 
-This constitution is the source of truth for all project decisions. Deviations require documented approval. All agents must operate within these constraints. Skills define the implementation patterns; deviation from skills is prohibited.
+[GOVERNANCE_RULES]
+<!-- Example: All PRs/reviews must verify compliance; Complexity must be justified; Use [GUIDANCE_FILE] for runtime development guidance -->
 
-**Version**: 1.0.0 | **Ratified**: 2026-01-10 | **Last Amended**: 2026-01-10
+**Version**: [CONSTITUTION_VERSION] | **Ratified**: [RATIFICATION_DATE] | **Last Amended**: [LAST_AMENDED_DATE]
+<!-- Example: Version: 2.1.1 | Ratified: 2025-06-13 | Last Amended: 2025-07-16 -->

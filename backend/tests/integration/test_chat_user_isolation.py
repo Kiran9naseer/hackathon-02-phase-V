@@ -27,7 +27,7 @@ def test_chat_user_isolation(client: TestClient, db: Session):
     
     # 3. User B tries to access User A's conversation
     def override_get_current_user_b():
-        return user_b
+        return user_b_id
     
     app.dependency_overrides[get_current_user] = override_get_current_user_b
     

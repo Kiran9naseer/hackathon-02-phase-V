@@ -52,3 +52,21 @@ debug_*.py
 *traceback.txt
 # Windows reserved names
 **/nul*
+
+# Local temp/debug files
+*.txt
+*.log
+debug_models.py
+tmp_list.py
+models_list.txt
+out.txt
+backend_debug_logs.txt
+backend_logs_tail.txt
+debug_logs.txt
+full_logs.txt
+tmp_list.py
+debug_models.py
+test_flash.py
+test_gemini_internal.py
+debug_logs.txt
+backend_debug_logs.txt

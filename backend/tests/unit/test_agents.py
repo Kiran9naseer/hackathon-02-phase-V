@@ -10,20 +10,20 @@ from app.models.message import Message, MessageRole
 from sqlalchemy.orm import Session
 
 @pytest.mark.asyncio
-async def test_task_manager_agent_add_intent():
+async def test_task_manager_agent_add_intent(db: Session):
     user_id = uuid4()
     message = "Add a task to buy bread"
-    decision = await TaskManagerAgent.process_message(message, [], user_id)
+    decision = await TaskManagerAgent.process_message(db, message, [], user_id)
     
     assert decision["action"] == "add_task"
     assert "bread" in decision["parameters"]["title"].lower()
     assert decision["requires_action_agent"] is True
 
 @pytest.mark.asyncio
-async def test_task_manager_agent_list_intent():
+async def test_task_manager_agent_list_intent(db: Session):
     user_id = uuid4()
     message = "show my tasks"
-    decision = await TaskManagerAgent.process_message(message, [], user_id)
+    decision = await TaskManagerAgent.process_message(db, message, [], user_id)
     
     assert decision["action"] == "list_tasks"
     assert decision["requires_action_agent"] is True

@@ -12,7 +12,7 @@ def test_chat_api_contract_success(client: TestClient, db: Session):
     db.commit()
     
     def override_get_current_user():
-        return db.query(User).filter(User.id == user_id).first()
+        return user_id
     
     app.dependency_overrides[get_current_user] = override_get_current_user
     
@@ -38,7 +38,7 @@ def test_chat_api_contract_invalid_payload(client: TestClient, db: Session):
     db.commit()
     
     def override_get_current_user():
-        return db.query(User).filter(User.id == user_id).first()
+        return user_id
     
     app.dependency_overrides[get_current_user] = override_get_current_user
     
@@ -49,8 +49,9 @@ def test_chat_api_contract_invalid_payload(client: TestClient, db: Session):
     del app.dependency_overrides[get_current_user]
 
 def test_chat_api_contract_wrong_user_format(client: TestClient):
+    u_id = uuid4()
     def override_get_current_user():
-        return User(id=uuid4(), email="test@example.com", hashed_password="pw")
+        return u_id
     
     app.dependency_overrides[get_current_user] = override_get_current_user
     

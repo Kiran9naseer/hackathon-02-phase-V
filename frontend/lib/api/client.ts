@@ -4,7 +4,7 @@ import { getToken as getAuthToken } from "@/lib/auth/hooks";
 
 const apiClient = axios.create({
   baseURL: getEnv().NEXT_PUBLIC_API_URL,
-  timeout: 10000,
+  timeout: 30000,
   withCredentials: true,
   headers: {
     "Content-Type": "application/json",

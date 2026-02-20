@@ -1,7 +1,7 @@
 """Task Pydantic schemas for request/response validation."""
 
 from datetime import date, datetime
-from typing import Optional
+from typing import Optional, List
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -20,14 +20,17 @@ class TaskBase(BaseModel):
     priority: TaskPriority = TaskPriority.MEDIUM
     category_id: Optional[UUID] = None
     due_date: Optional[date] = None
+    reminder_config: Optional[dict] = None
+    recurrence_rule: Optional[dict] = None
+    recurrence_series_id: Optional[UUID] = None
 
 
 class TaskCreate(TaskBase):
     """Schema for creating a new task."""
 
     model_config = ConfigDict(from_attributes=True)
-
     status: TaskStatus = TaskStatus.PENDING
+    tag_ids: Optional[List[UUID]] = None
 
 
 class TaskUpdate(BaseModel):
@@ -42,6 +45,9 @@ class TaskUpdate(BaseModel):
     category_id: Optional[UUID] = None
     due_date: Optional[date] = None
     status: Optional[TaskStatus] = None
+    reminder_config: Optional[dict] = None
+    recurrence_rule: Optional[dict] = None
+    tag_ids: Optional[List[UUID]] = None
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -65,5 +71,27 @@ class TaskListResponse(BaseModel):
 
     tasks: list[TaskResponse]
     total: int
+    limit: int
+    offset: int
+
+
+class SearchRequest(BaseModel):
+    """Schema for advanced search request."""
+
+    query: str = ""
+    status: Optional[TaskStatus] = None
+    priority: Optional[TaskPriority] = None
+    category_id: Optional[UUID] = None
+    tag_ids: Optional[List[UUID]] = None
+    limit: int = 50
+    offset: int = 0
+
+
+class SearchResponse(BaseModel):
+    """Schema for search results."""
+
+    items: List[TaskResponse]
+    total: int
+    query: str
     limit: int
     offset: int

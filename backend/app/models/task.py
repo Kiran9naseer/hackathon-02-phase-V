@@ -2,15 +2,21 @@
 
 from datetime import date, datetime
 from enum import Enum
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING, Optional, List
 from uuid import UUID, uuid4
 
-from sqlalchemy import Column, Date, DateTime, Text, String
+from sqlalchemy import Column, Date, DateTime, Text, String, JSON as SQLJSON
 from sqlmodel import Field, Relationship, SQLModel
 
 if TYPE_CHECKING:
     from app.models.user import User
     from app.models.category import Category
+    from app.models.tag import Tag
+    from app.models.task_reminder import TaskReminder
+    from app.models.recurring_series import RecurringTaskSeries
+
+# Import for link_model - must be at module level
+from app.models.task_tags import TaskTag
 
 
 class TaskStatus(str, Enum):
@@ -68,6 +74,25 @@ class Task(SQLModel, table=True):
     )
     due_date: Optional[date] = Field(default=None, sa_column=Column(Date))
     completed_at: Optional[datetime] = Field(default=None, sa_column=Column(DateTime))
+    
+    # Phase V - Advanced Features
+    reminder_config: Optional[dict] = Field(
+        default=None,
+        sa_column=Column("reminder_config", SQLJSON),
+        description="Reminder settings: {offsets: [-1440, -60], type: 'in_app'}"
+    )
+    recurrence_rule: Optional[dict] = Field(
+        default=None,
+        sa_column=Column("recurrence_rule", SQLJSON),
+        description="Recurrence rule for standalone recurring tasks"
+    )
+    recurrence_series_id: Optional[UUID] = Field(
+        default=None,
+        foreign_key="recurring_task_series.id",
+        index=True,
+        description="Parent series ID if this is a generated instance"
+    )
+    
     created_at: datetime = Field(
         default_factory=datetime.utcnow,
         sa_column=Column(DateTime(timezone=False), default=datetime.utcnow),
@@ -80,6 +105,17 @@ class Task(SQLModel, table=True):
     # Relationships
     user: "User" = Relationship(back_populates="tasks")
     category: "Category" = Relationship(back_populates="tasks")
+    
+    # Phase V - Advanced Features
+    tags: List["Tag"] = Relationship(
+        back_populates="tasks",
+        link_model=TaskTag
+    )
+    reminders: List["TaskReminder"] = Relationship(back_populates="task")
+    recurrence_series: Optional["RecurringTaskSeries"] = Relationship(
+        back_populates="tasks",
+        sa_relationship_kwargs={"foreign_keys": "[Task.recurrence_series_id]"}
+    )
 
     def __repr__(self) -> str:
         """String representation of the task."""

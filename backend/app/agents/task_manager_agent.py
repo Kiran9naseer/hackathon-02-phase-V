@@ -1,5 +1,7 @@
 import logging
 import re
+import os
+import json
 from typing import List, Dict, Any, Optional
 from uuid import UUID
 from sqlalchemy.orm import Session
@@ -8,24 +10,129 @@ from app.dependencies.database import SessionLocal
 
 logger = logging.getLogger(__name__)
 
+# ─── Gemini Setup ──────────────────────────────────────────────────────────────
+_gemini_model = None
+
+def _get_gemini_model():
+    """Lazy-load Gemini model. Returns None if API key is not set."""
+    global _gemini_model
+    if _gemini_model is not None:
+        return _gemini_model
+    
+    api_key = os.getenv("GEMINI_API_KEY", "").strip()
+    if not api_key:
+        return None
+    
+    try:
+        import google.generativeai as genai
+        genai.configure(api_key=api_key)
+        
+        # gemini-pro is the most stable found on this key
+        # We don't ping here anymore to save quota
+        _gemini_model = genai.GenerativeModel("gemini-pro")
+        logger.info("Gemini AI model 'gemini-pro' initialized.")
+            
+    except Exception as e:
+        logger.warning(f"Failed to configure Gemini SDK: {e}")
+        _gemini_model = None
+    
+    return _gemini_model
+
+
+GEMINI_SYSTEM_PROMPT = """You are a smart task management assistant. Analyze the user's message and respond in JSON.
+
+Rules:
+1. Determine the intent: "add_task", "list_tasks", "complete_task", "delete_task", or "chat"
+2. For "add_task": extract the task title from the message
+3. For "complete_task" or "delete_task": extract the task title/reference
+4. For "list_tasks" or "chat": just respond naturally
+
+ALWAYS respond with valid JSON in this exact format:
+{
+  "intent": "add_task" | "list_tasks" | "complete_task" | "delete_task" | "chat",
+  "task_title": "<extracted title if applicable, else null>",
+  "response": "<your natural, friendly response in the same language the user used>"
+}
+
+Examples:
+- User: "add task buy milk" → {"intent": "add_task", "task_title": "buy milk", "response": "✅ I've added 'buy milk' to your tasks!"}
+- User: "show my tasks" → {"intent": "list_tasks", "task_title": null, "response": "Here are your tasks:"}
+- User: "hello" → {"intent": "chat", "task_title": null, "response": "Hello! I'm your task assistant. How can I help you today?"}
+- User: "task add karo meeting" → {"intent": "add_task", "task_title": "meeting", "response": "✅ 'meeting' task add kar diya!"}
+"""
+
+
+async def _call_gemini(message: str, history: List[Dict[str, str]]) -> Optional[Dict]:
+    """Call Gemini API and parse the JSON response."""
+    model = _get_gemini_model()
+    if not model:
+        return None
+    
+    try:
+        # Build context from history (last 6 messages)
+        context = ""
+        for h in history[-6:]:
+            role = h.get("role", "user")
+            content = h.get("content", "")
+            context += f"{role}: {content}\n"
+        
+        prompt = f"{GEMINI_SYSTEM_PROMPT}\n\nConversation history:\n{context}\nUser: {message}"
+        
+        response = model.generate_content(prompt)
+        raw = response.text.strip()
+        
+        # Strip markdown code blocks if present
+        if raw.startswith("```"):
+            raw = re.sub(r"```(?:json)?", "", raw).strip().rstrip("```").strip()
+        
+        parsed = json.loads(raw)
+        return parsed
+    except json.JSONDecodeError as e:
+        logger.warning(f"Gemini returned invalid JSON: {e}")
+        return None
+    except Exception as e:
+        logger.error(f"Gemini API call failed: {type(e).__name__}: {str(e)}")
+        return None
+
+
+# ─── Rule-based fallback ────────────────────────────────────────────────────────
+def _rule_based_intent(message: str) -> Dict:
+    """Simple regex-based intent detection as fallback."""
+    message_lc = message.lower()
+    
+    add_match = re.search(
+        r"(?:add|create|remember|new|remind)(?:\s+(?:a|the))?(?:\s+task)?(?:\s+to)?\s+(.+)",
+        message_lc, re.IGNORECASE
+    )
+    if add_match:
+        title = add_match.group(1).strip()
+        if title.lower().startswith("to "):
+            title = title[3:].strip()
+        return {"intent": "add_task", "task_title": title, "response": None}
+    
+    if any(k in message_lc for k in ["list", "show", "what", "tasks", "get", "dikhao", "dekho"]):
+        return {"intent": "list_tasks", "task_title": None, "response": None}
+    
+    return {"intent": "chat", "task_title": None, "response": None}
+
+
 class TaskManagerAgent:
     """
     Agent responsible for understanding user intent and managing tasks.
-    In this implementation, it uses rule-based logic to simulate an AI's tool-calling behavior.
+    Uses Gemini AI when available, falls back to rule-based logic.
     """
 
     @staticmethod
     async def process_message(
         db: Session,
-        message: str, 
-        history: List[Dict[str, str]], 
+        message: str,
+        history: List[Dict[str, str]],
         user_id: UUID
     ) -> Dict[str, Any]:
         """
         Process user message, determine intent, execute actions via TaskService,
         and return a decision dictionary.
         """
-        message_lc = message.lower()
         decision = {
             "response": "",
             "tool_calls": [],
@@ -34,60 +141,61 @@ class TaskManagerAgent:
             "requires_action_agent": False
         }
 
-        # Use TaskService instance
         task_service = TaskService(db, user_id)
 
         try:
-            # Simple Intent Recognition with improved patterns
+            # ── 1. Get intent (Gemini first, then rule-based fallback) ──────────
+            gemini_result = await _call_gemini(message, history)
             
-            # 1. ADD TASK
-            # Patterns like "add task buy milk", "remember to call mom", "create task: project"
-            add_match = re.search(r"(?:add|create|remember|new|remind)(?:\s+(?:a|the))?(?:\s+task)?(?:\s+to)?\s+(.+)", message_lc, re.IGNORECASE)
-            
-            if add_match:
-                title = add_match.group(1).strip()
-                # Clean up "to" if it's still at the start
-                if title.lower().startswith("to "):
-                    title = title[3:].strip()
-                
-                # Mock tool call structure for frontend compatibility
+            if gemini_result and "intent" in gemini_result:
+                intent = gemini_result.get("intent", "chat")
+                task_title = gemini_result.get("task_title")
+                ai_response = gemini_result.get("response", "")
+                logger.info(f"Gemini intent: {intent}, title: {task_title}")
+            else:
+                # Fallback to rule-based
+                fallback = _rule_based_intent(message)
+                intent = fallback["intent"]
+                task_title = fallback["task_title"]
+                ai_response = None
+                logger.info(f"Rule-based intent: {intent}")
+
+            # ── 2. Execute action based on intent ───────────────────────────────
+            if intent == "add_task" and task_title:
                 tool_call = {
                     "id": "tc_add_" + str(user_id)[:8],
                     "name": "add_task",
-                    "input": {"title": title},
+                    "input": {"title": task_title},
                     "status": "completed"
                 }
-                
                 try:
                     from app.schemas.task_schema import TaskCreate
                     from app.models.task import TaskPriority, TaskStatus
-                    
+
                     task_data = TaskCreate(
-                        title=title,
+                        title=task_title,
                         priority=TaskPriority.MEDIUM,
                         status=TaskStatus.PENDING
                     )
                     new_task = task_service.create(task_data)
-                    
                     tool_call["result"] = {"id": str(new_task.id), "title": new_task.title}
-                    decision["response"] = f"✅ Success! I've added the task: '{new_task.title}'"
+                    decision["response"] = ai_response or f"✅ Task added: '{new_task.title}'"
                 except Exception as e:
                     logger.error(f"Failed to add task: {e}")
                     tool_call["status"] = "failed"
                     tool_call["result"] = {"error": str(e)}
-                    decision["response"] = "I'm sorry, I encountered an error while trying to add that task."
+                    decision["response"] = "I'm sorry, I encountered an error while adding that task."
 
                 decision["tool_calls"].append(tool_call)
                 decision["action"] = "add_task"
-                decision["parameters"] = {"title": title}
+                decision["parameters"] = {"title": task_title}
                 decision["requires_action_agent"] = True
 
-            # 2. LIST TASKS
-            elif any(k in message_lc for k in ["list", "show", "what", "tasks", "get"]):
+            elif intent == "list_tasks":
                 try:
-                    tasks_info = task_service.list(limit=5)
+                    tasks_info = task_service.list(limit=10)
                     tasks = tasks_info.get("tasks", [])
-                    
+
                     tool_call = {
                         "id": "tc_list_" + str(user_id)[:8],
                         "name": "list_tasks",
@@ -95,28 +203,35 @@ class TaskManagerAgent:
                         "status": "completed",
                         "result": {"count": len(tasks)}
                     }
-                    
+
                     if tasks:
                         task_list = "\n".join([f"• {t.title} [{t.status}]" for t in tasks])
-                        decision["response"] = f"Here are your latest tasks:\n{task_list}"
+                        decision["response"] = ai_response or f"Here are your tasks:\n{task_list}"
+                        # Append actual task list to Gemini's response
+                        if ai_response:
+                            decision["response"] = f"{ai_response}\n{task_list}"
                     else:
-                        decision["response"] = "You don't have any tasks in your list yet."
-                    
+                        decision["response"] = ai_response or "You don't have any tasks yet. Add one by saying 'add task <title>'!"
+
                     decision["tool_calls"].append(tool_call)
                     decision["action"] = "list_tasks"
                     decision["requires_action_agent"] = True
                 except Exception as e:
                     logger.error(f"Failed to list tasks: {e}")
-                    decision["response"] = "I had some trouble retrieving your tasks. Please try again."
+                    decision["response"] = "I had trouble retrieving your tasks. Please try again."
 
-            # 3. FALLBACK / CHAT
             else:
-                decision["response"] = "I'm your Todo Assistant! You can tell me things like 'add task buy bread' or 'show my tasks'."
+                # General chat or unrecognized intent
+                decision["response"] = ai_response or (
+                    "I'm your Todo Assistant! You can:\n"
+                    "• Add tasks: 'add task buy groceries'\n"
+                    "• View tasks: 'show my tasks'"
+                )
                 decision["action"] = "chat"
                 decision["requires_action_agent"] = False
 
         except Exception as e:
             logger.error(f"Unexpected error in TaskManagerAgent: {e}")
-            decision["response"] = "Oops, something went wrong on my end."
+            decision["response"] = "Oops, something went wrong. Please try again."
 
         return decision

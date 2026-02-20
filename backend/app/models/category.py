@@ -10,6 +10,7 @@ from sqlmodel import Field, Relationship, SQLModel
 if TYPE_CHECKING:
     from app.models.user import User
     from app.models.task import Task
+    from app.models.recurring_series import RecurringTaskSeries
 
 
 class Category(SQLModel, table=True):
@@ -40,6 +41,7 @@ class Category(SQLModel, table=True):
     # Relationships
     user: "User" = Relationship(back_populates="categories")
     tasks: list["Task"] = Relationship(back_populates="category")
+    recurring_series: list["RecurringTaskSeries"] = Relationship(back_populates="category")
 
     def __repr__(self) -> str:
         """String representation of the category."""

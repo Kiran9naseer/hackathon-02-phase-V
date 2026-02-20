@@ -1,0 +1,89 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: dapr-placement
+  labels:
+    app: dapr-placement
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: dapr-placement
+  template:
+    metadata:
+      labels:
+        app: dapr-placement
+    spec:
+      containers:
+      - name: placement
+        image: daprio/dapr:1.12.0
+        command:
+        - "/placement"
+        ports:
+        - containerPort: 50005
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: 8080
+          initialDelaySeconds: 5
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /healthz
+            port: 8080
+          initialDelaySeconds: 5
+          periodSeconds: 10
+        resources:
+          requests:
+            memory: "64Mi"
+            cpu: "100m"
+          limits:
+            memory: "128Mi"
+            cpu: "200m"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: dapr-placement
+  labels:
+    app: dapr-placement
+spec:
+  ports:
+  - port: 50005
+    targetPort: 50005
+    name: placement
+  selector:
+    app: dapr-placement
+  type: ClusterIP
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: components.dapr.io
+spec:
+  group: dapr.io
+  versions:
+  - name: v1alpha1
+    served: true
+    storage: true
+  scope: Namespaced
+  names:
+    plural: components
+    singular: component
+    kind: Component
+---
+apiVersion: dapr.io/v1alpha1
+kind: Component
+metadata:
+  name: reminders
+spec:
+  type: reminders.inmemory
+  version: v1
+---
+apiVersion: dapr.io/v1alpha1
+kind: Component
+metadata:
+  name: pubsub
+spec:
+  type: pubsub.inmemory
+  version: v1

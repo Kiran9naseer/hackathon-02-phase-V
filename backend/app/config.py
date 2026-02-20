@@ -28,6 +28,9 @@ class Settings(BaseSettings):
     API_HOST: str = "0.0.0.0"
     API_PORT: int = Field(default=7860)
 
+    # AI Configuration
+    GEMINI_API_KEY: str = Field(default="", description="Google Gemini API key for AI chatbot")
+
     DEBUG: bool = False
 
     @field_validator("DATABASE_URL", mode="before")
@@ -68,7 +71,8 @@ class Settings(BaseSettings):
     model_config = {
         "env_file": ".env",
         "env_file_encoding": "utf-8",
-        "case_sensitive": True
+        "case_sensitive": True,
+        "extra": "ignore"
     }
 
 

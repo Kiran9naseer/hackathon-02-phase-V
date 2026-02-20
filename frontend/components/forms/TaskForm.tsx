@@ -5,12 +5,17 @@ import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useCategories } from "@/hooks/useCategories";
+import { useTags } from "@/hooks/useTags";
 import { createTaskSchema, type CreateTaskSchema } from "@/lib/validation/schemas";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Label } from "@/components/ui/Label";
 import { Select } from "@/components/ui/Select";
-import type { Task, CreateTaskRequest, UpdateTaskRequest } from "@/types/task";
+import TagInput from "@/components/tasks/TagInput";
+import { RecurringSettings } from "@/components/tasks/RecurringSettings";
+import { ReminderConfig } from "@/components/tasks/ReminderConfig";
+import Switch from "@/components/ui/Switch";
+import type { Task, CreateTaskRequest, UpdateTaskRequest, Tag } from "@/types/task";
 
 interface TaskFormProps {
   task?: Task;
@@ -23,10 +28,21 @@ export function TaskForm({ task, onSubmit, onCancel, isLoading }: TaskFormProps)
   const router = useRouter();
   const [submitError, setSubmitError] = useState<string | null>(null);
   const { categories, fetchCategories } = useCategories();
+  const { tags: availableTags, fetchTags, createTag } = useTags();
+  const [selectedTags, setSelectedTags] = useState<Tag[]>(task?.tags || []);
+  const [isRecurring, setIsRecurring] = useState(false);
+  const [recurringSettings, setRecurringSettings] = useState({
+    frequency: "daily",
+    interval: 1,
+    endDate: undefined as string | undefined
+  });
+  const [reminderOffsets, setReminderOffsets] = useState<number[]>([]);
+  const [hasReminder, setHasReminder] = useState(false);
 
   useEffect(() => {
     fetchCategories();
-  }, [fetchCategories]);
+    fetchTags();
+  }, [fetchCategories, fetchTags]);
 
   const {
     register,
@@ -51,12 +67,16 @@ export function TaskForm({ task, onSubmit, onCancel, isLoading }: TaskFormProps)
   const onFormSubmit = async (data: CreateTaskSchema) => {
     setSubmitError(null);
     try {
-      const submitData: CreateTaskRequest | UpdateTaskRequest = {
+      const submitData: any = {
         title: data.title,
         description: data.description || undefined,
         priority: data.priority,
         categoryId: data.categoryId || undefined,
         dueDate: data.dueDate || undefined,
+        tag_ids: selectedTags.map(tag => tag.id),
+        is_recurring: isRecurring,
+        recurrence: isRecurring ? recurringSettings : undefined,
+        reminder_config: hasReminder ? { offsets: reminderOffsets, type: 'in_app' } : undefined
       };
       await onSubmit(submitData);
     } catch (err) {
@@ -150,6 +170,62 @@ export function TaskForm({ task, onSubmit, onCancel, isLoading }: TaskFormProps)
           />
         </div>
       </div>
+
+      <div className="space-y-1.5">
+        <Label htmlFor="tags" className="text-[10px] font-black uppercase tracking-[0.2em] text-primary-50/30 ml-1 italic">Tags</Label>
+        <TagInput
+          selectedTags={selectedTags}
+          onTagsChange={(tags) => setSelectedTags(tags)}
+          availableTags={availableTags}
+          onCreateTag={createTag}
+        />
+      </div>
+
+      {!task && (
+        <div className="space-y-4">
+          <div className="flex items-center justify-between p-4 bg-primary-500/5 rounded-xl border border-primary-500/10">
+            <div className="flex flex-col">
+              <span className="text-xs font-black uppercase text-white italic tracking-tighter">Due Date Reminder</span>
+              <span className="text-[10px] text-primary-50/20 font-medium italic">Receive a notification before deadline</span>
+            </div>
+            <Switch
+              checked={hasReminder}
+              onCheckedChange={setHasReminder}
+            />
+          </div>
+
+          {hasReminder && (
+            <ReminderConfig
+              offsets={reminderOffsets}
+              onChange={setReminderOffsets}
+            />
+          )}
+
+          <div className="flex items-center justify-between p-4 bg-primary-500/5 rounded-xl border border-primary-500/10">
+            <div className="flex flex-col">
+              <span className="text-xs font-black uppercase text-white italic tracking-tighter">Enable Recurrence</span>
+              <span className="text-[10px] text-primary-50/20 font-medium italic">Automate this directive periodically</span>
+            </div>
+            <Switch
+              checked={isRecurring}
+              onCheckedChange={setIsRecurring}
+            />
+          </div>
+
+          {isRecurring && (
+            <RecurringSettings
+              frequency={recurringSettings.frequency}
+              interval={recurringSettings.interval}
+              endDate={recurringSettings.endDate}
+              onChange={(s) => setRecurringSettings({
+                frequency: s.frequency,
+                interval: s.interval,
+                endDate: s.endDate
+              })}
+            />
+          )}
+        </div>
+      )}
 
       <div className="flex justify-end gap-3 pt-6 border-t border-primary-500/10">
         {onCancel && (

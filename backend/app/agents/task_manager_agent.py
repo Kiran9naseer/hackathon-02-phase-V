@@ -41,18 +41,17 @@ def _get_gemini_model():
         
         for model_name in model_candidates:
             try:
+                # Initialize model without a validation ping to save quota
                 candidate = genai.GenerativeModel(model_name)
-                # Quick validation ping
-                candidate.generate_content("hi")
                 _gemini_model = candidate
                 _gemini_model_loaded = True
-                logger.info(f"Gemini AI model '{model_name}' initialized successfully.")
+                logger.info(f"Gemini AI model '{model_name}' configured successfully.")
                 return _gemini_model
             except Exception as model_err:
-                logger.warning(f"Model '{model_name}' unavailable: {model_err}")
+                logger.warning(f"Failed to create model '{model_name}': {model_err}")
                 continue
                 
-        logger.error("All Gemini model candidates failed.")
+        logger.error("Could not initialize any Gemini model candidates.")
         return None
             
     except Exception as e:

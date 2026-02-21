@@ -11,32 +11,53 @@ from app.dependencies.database import SessionLocal
 logger = logging.getLogger(__name__)
 
 # ─── Gemini Setup ──────────────────────────────────────────────────────────────
+# Do NOT cache None — allow retry on each request if loading failed
 _gemini_model = None
+_gemini_model_loaded = False
 
 def _get_gemini_model():
-    """Lazy-load Gemini model. Returns None if API key is not set."""
-    global _gemini_model
-    if _gemini_model is not None:
+    """Lazy-load Gemini model. Returns None if API key is not set or model fails."""
+    global _gemini_model, _gemini_model_loaded
+    
+    # Return cached successful model
+    if _gemini_model_loaded and _gemini_model is not None:
         return _gemini_model
     
     api_key = os.getenv("GEMINI_API_KEY", "").strip()
     if not api_key:
+        logger.warning("GEMINI_API_KEY not set, chatbot will use rule-based fallback.")
         return None
+    
+    # Try models in order of preference
+    model_candidates = [
+        "gemini-2.0-flash",
+        "gemini-2.5-flash",
+        "gemini-1.5-flash",
+    ]
     
     try:
         import google.generativeai as genai
         genai.configure(api_key=api_key)
         
-        # gemini-pro is the most stable found on this key
-        # We don't ping here anymore to save quota
-        _gemini_model = genai.GenerativeModel("gemini-pro")
-        logger.info("Gemini AI model 'gemini-pro' initialized.")
+        for model_name in model_candidates:
+            try:
+                candidate = genai.GenerativeModel(model_name)
+                # Quick validation ping
+                candidate.generate_content("hi")
+                _gemini_model = candidate
+                _gemini_model_loaded = True
+                logger.info(f"Gemini AI model '{model_name}' initialized successfully.")
+                return _gemini_model
+            except Exception as model_err:
+                logger.warning(f"Model '{model_name}' unavailable: {model_err}")
+                continue
+                
+        logger.error("All Gemini model candidates failed.")
+        return None
             
     except Exception as e:
         logger.warning(f"Failed to configure Gemini SDK: {e}")
-        _gemini_model = None
-    
-    return _gemini_model
+        return None
 
 
 GEMINI_SYSTEM_PROMPT = """You are a smart task management assistant. Analyze the user's message and respond in JSON.

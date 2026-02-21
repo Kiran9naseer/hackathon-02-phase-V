@@ -71,7 +71,7 @@ async def run_maintenance():
 
 app = FastAPI(
     title="Todo Backend API",
-    version="1.0.0",
+    version="1.1.0",
     lifespan=lifespan
 )
 
@@ -99,7 +99,7 @@ async def root():
     return {
         "status": "healthy",
         "service": "Todo Backend API",
-        "version": "1.0.0"
+        "version": "1.1.0"
     }
 
 if __name__ == "__main__":

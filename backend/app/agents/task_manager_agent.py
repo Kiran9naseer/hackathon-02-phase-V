@@ -109,11 +109,20 @@ async def _call_gemini(message: str, history: List[Dict[str, str]]) -> Optional[
         
         parsed = json.loads(raw)
         return parsed
-    except json.JSONDecodeError as e:
-        logger.warning(f"Gemini returned invalid JSON: {e}")
-        return None
     except Exception as e:
-        logger.error(f"Gemini API call failed: {type(e).__name__}: {str(e)}")
+        error_msg = str(e)
+        logger.error(f"Gemini API call failed: {error_msg}")
+        
+        # Reset loaded state so we retry configuration on next attempt
+        global _gemini_model_loaded
+        _gemini_model_loaded = False
+        
+        # User-facing error hints
+        if "401" in error_msg or "API_KEY_INVALID" in error_msg:
+            return {"intent": "chat", "response": "⚠️ AI Error: Your GEMINI_API_KEY is invalid. Please check Hugging Face Secrets."}
+        if "429" in error_msg or "QUOTA_EXCEEDED" in error_msg:
+            return {"intent": "chat", "response": "⚠️ AI Error: Gemini API quota exceeded. Please try again in a minute."}
+        
         return None
 
 

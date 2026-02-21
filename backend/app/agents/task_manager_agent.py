@@ -42,23 +42,25 @@ def _get_gemini_model():
 GEMINI_SYSTEM_PROMPT = """You are a smart task management assistant. Analyze the user's message and respond in JSON.
 
 Rules:
-1. Determine the intent: "add_task", "list_tasks", "complete_task", "delete_task", or "chat"
+1. Determine the intent: "add_task", "list_tasks", "complete_task", "delete_task", "web_search", "get_weather", or "chat"
 2. For "add_task": extract the task title from the message
 3. For "complete_task" or "delete_task": extract the task title/reference
-4. For "list_tasks" or "chat": just respond naturally
+4. For "web_search": extract the search query
+5. For "get_weather": extract the city/location
+6. For "list_tasks" or "chat": just respond naturally
 
 ALWAYS respond with valid JSON in this exact format:
 {
-  "intent": "add_task" | "list_tasks" | "complete_task" | "delete_task" | "chat",
-  "task_title": "<extracted title if applicable, else null>",
+  "intent": "add_task" | "list_tasks" | "complete_task" | "delete_task" | "web_search" | "get_weather" | "chat",
+  "task_title": "<extracted title/query/location if applicable, else null>",
   "response": "<your natural, friendly response in the same language the user used>"
 }
 
 Examples:
 - User: "add task buy milk" → {"intent": "add_task", "task_title": "buy milk", "response": "✅ I've added 'buy milk' to your tasks!"}
-- User: "show my tasks" → {"intent": "list_tasks", "task_title": null, "response": "Here are your tasks:"}
+- User: "search latest tech news" → {"intent": "web_search", "task_title": "latest tech news", "response": "Searching for latest tech news..."}
+- User: "Karachi ka mousam kaisa hai?" → {"intent": "get_weather", "task_title": "Karachi", "response": "Karachi ka mousam check kar raha hoon..."}
 - User: "hello" → {"intent": "chat", "task_title": null, "response": "Hello! I'm your task assistant. How can I help you today?"}
-- User: "task add karo meeting" → {"intent": "add_task", "task_title": "meeting", "response": "✅ 'meeting' task add kar diya!"}
 """
 
 
@@ -190,6 +192,26 @@ class TaskManagerAgent:
                 decision["action"] = "add_task"
                 decision["parameters"] = {"title": task_title}
                 decision["requires_action_agent"] = True
+
+            elif intent == "web_search" and task_title:
+                try:
+                    from app.services.external_api_service import ExternalApiService
+                    search_results = await ExternalApiService.search_web(task_title)
+                    decision["response"] = f"{ai_response}\n\n{search_results}" if ai_response else search_results
+                    decision["action"] = "web_search"
+                except Exception as e:
+                    logger.error(f"Web search failed: {e}")
+                    decision["response"] = "I had trouble searching the web. Please try again later."
+
+            elif intent == "get_weather" and task_title:
+                try:
+                    from app.services.external_api_service import ExternalApiService
+                    weather_info = await ExternalApiService.get_weather(task_title)
+                    decision["response"] = f"{ai_response}\n\n{weather_info}" if ai_response else weather_info
+                    decision["action"] = "get_weather"
+                except Exception as e:
+                    logger.error(f"Weather fetch failed: {e}")
+                    decision["response"] = "I couldn't get the weather info right now."
 
             elif intent == "list_tasks":
                 try:

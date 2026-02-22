@@ -220,7 +220,8 @@ class TaskManagerAgent:
                     )
                     new_task = task_service.create(task_data)
                     tool_call["result"] = {"id": str(new_task.id), "title": new_task.title}
-                    decision["response"] = ai_response or f"✅ Task added: '{new_task.title}'"
+                    msg = f"✅ Task added: '{new_task.title}'"
+                    decision["response"] = f"{ai_response}{msg}" if ai_response else msg
                 except Exception as e:
                     logger.error(f"Failed to add task: {e}")
                     tool_call["status"] = "failed"
@@ -267,12 +268,11 @@ class TaskManagerAgent:
 
                     if tasks:
                         task_list = "\n".join([f"• {t.title} [{t.status}]" for t in tasks])
-                        decision["response"] = ai_response or f"Here are your tasks:\n{task_list}"
-                        # Append actual task list to Gemini's response
-                        if ai_response:
-                            decision["response"] = f"{ai_response}\n{task_list}"
+                        msg = f"Here are your tasks:\n{task_list}"
+                        decision["response"] = f"{ai_response}{msg}" if ai_response else msg
                     else:
-                        decision["response"] = ai_response or "You don't have any tasks yet. Add one by saying 'add task <title>'!"
+                        msg = "You don't have any tasks yet. Add one by saying 'add task <title>'!"
+                        decision["response"] = f"{ai_response}{msg}" if ai_response else msg
 
                     decision["tool_calls"].append(tool_call)
                     decision["action"] = "list_tasks"
@@ -283,11 +283,12 @@ class TaskManagerAgent:
 
             else:
                 # General chat or unrecognized intent
-                decision["response"] = ai_response or (
+                msg = (
                     "I'm your Todo Assistant! You can:\n"
                     "• Add tasks: 'add task buy groceries'\n"
                     "• View tasks: 'show my tasks'"
                 )
+                decision["response"] = f"{ai_response}{msg}" if ai_response else msg
                 decision["action"] = "chat"
                 decision["requires_action_agent"] = False
 

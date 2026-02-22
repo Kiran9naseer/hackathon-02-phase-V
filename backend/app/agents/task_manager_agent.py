@@ -117,11 +117,15 @@ async def _call_gemini(message: str, history: List[Dict[str, str]]) -> Optional[
         global _gemini_model_loaded
         _gemini_model_loaded = False
         
-        # User-facing error hints
+        # Determine error type for fallback warning
+        warning = None
         if "401" in error_msg or "API_KEY_INVALID" in error_msg:
-            return {"intent": "chat", "response": "⚠️ AI Error: Your GEMINI_API_KEY is invalid. Please check Hugging Face Secrets."}
-        if "429" in error_msg or "QUOTA_EXCEEDED" in error_msg:
-            return {"intent": "chat", "response": "⚠️ AI Error: Gemini API quota exceeded. Please try again in a minute."}
+            warning = "⚠️ AI Warning: Invalid GEMINI_API_KEY. Falling back to simple mode."
+        elif "429" in error_msg or "QUOTA_EXCEEDED" in error_msg:
+            warning = "⚠️ AI Warning: Gemini quota exceeded. Falling back to simple mode."
+        
+        if warning:
+            return {"is_fallback": True, "error_warning": warning}
         
         return None
 
@@ -178,6 +182,11 @@ class TaskManagerAgent:
             # ── 1. Get intent (Gemini first, then rule-based fallback) ──────────
             gemini_result = await _call_gemini(message, history)
             
+            error_warning = None
+            if gemini_result and gemini_result.get("is_fallback"):
+                error_warning = gemini_result.get("error_warning")
+                gemini_result = None
+
             if gemini_result and "intent" in gemini_result:
                 intent = gemini_result.get("intent", "chat")
                 task_title = gemini_result.get("task_title")
@@ -188,7 +197,8 @@ class TaskManagerAgent:
                 fallback = _rule_based_intent(message)
                 intent = fallback["intent"]
                 task_title = fallback["task_title"]
-                ai_response = None
+                # Start response with warning if present
+                ai_response = f"{error_warning}\n\n" if error_warning else None
                 logger.info(f"Rule-based intent: {intent}")
 
             # ── 2. Execute action based on intent ───────────────────────────────
